@@ -1,6 +1,8 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:http/io_client.dart';
 import 'package:http/http.dart' as http;
+import 'package:http/io_client.dart' as http show IOClient;
 import 'dart:math';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:path_provider/path_provider.dart';
@@ -16,6 +18,7 @@ class ScanApiConfigPage extends StatefulWidget {
 class _ScanApiConfigPageState extends State<ScanApiConfigPage> {
   final TextEditingController _apiKeyController = TextEditingController();
   final TextEditingController _merchantController = TextEditingController();
+  final TextEditingController _poiIdSuffixController = TextEditingController();
   bool _isLoading = false;
   String _scanResult = '';
 
@@ -31,8 +34,10 @@ class _ScanApiConfigPageState extends State<ScanApiConfigPage> {
     final merchantAccount = prefs.getString('merchant_account');
     if ((apiKey == null || apiKey.isEmpty) && (merchantAccount == null || merchantAccount.isEmpty)) {
       setState(() {
-        _apiKeyController.text = 'AQEqhmfxL43JaxFCw0m/n3Q5qf3Ve59fDIZHTXfy5UT9AM9RlDqYku8lh1U2EMFdWw2+5HzctViMSCJMYAc=-iql6F+AYb1jkHn3zzDBcXZZvYzXFr9wd1iCR9y2JDU0=-i1i{=<;wFH*jLc94NQe';
-        _merchantController.text = 'Straumur_POS_BJARNI_DEFAULT_TEST';
+        //_apiKeyController.text = 'AQEqhmfxL43JaxFCw0m/n3Q5qf3Ve59fDIZHTXfy5UT9AM9RlDqYku8lh1U2EMFdWw2+5HzctViMSCJMYAc=-iql6F+AYb1jkHn3zzDBcXZZvYzXFr9wd1iCR9y2JDU0=-i1i{=<;wFH*jLc94NQe';
+        //_merchantController.text = 'Straumur_POS_BJARNI_DEFAULT_TEST';
+        _apiKeyController.text = '';
+        _merchantController.text = '';
       });
     } else {
       setState(() {
@@ -48,9 +53,9 @@ class _ScanApiConfigPageState extends State<ScanApiConfigPage> {
       _scanResult = '';
     });
 
-    // Hardcoded values
-    const apiKey = 'AQEqhmfxL43JaxFCw0m/n3Q5qf3Ve59fDIZHTXfy5UT9AM9RlDqYku8lh1U2EMFdWw2+5HzctViMSCJMYAc=-iql6F+AYb1jkHn3zzDBcXZZvYzXFr9wd1iCR9y2JDU0=-i1i{=<;wFH*jLc94NQe';
-    const poiId = 'S1F2L-000158251517660';
+    // Hardcoded prefix, user inputs last 3 digits
+    const poiIdPrefix = 'S1F2L-000158251517';
+    final poiId = poiIdPrefix + _poiIdSuffixController.text.trim();
 
     final sessionId = Random().nextInt(999999);
     final now = DateTime.now().toUtc();
@@ -90,11 +95,16 @@ class _ScanApiConfigPageState extends State<ScanApiConfigPage> {
     };
 
     try {
-      final response = await http.post(
-        Uri.parse("https://terminal-api-test.adyen.com/sync"),
+      // Accept self-signed certificates for local dev only
+      final ioClient = HttpClient()
+        ..badCertificateCallback = (cert, host, port) => true;
+      final client = http.IOClient(ioClient);
+
+      final response = await client.post(
+        Uri.parse("https://localhost:8443/nexo"),
         headers: {
           'Content-Type': 'application/json',
-          'X-API-Key': apiKey,
+          // No X-API-Key for local comms
         },
         body: jsonEncode(fullRequest),
       );
@@ -113,13 +123,28 @@ class _ScanApiConfigPageState extends State<ScanApiConfigPage> {
             String apiKey = '';
             String merchantAccount = '';
 
-            // Try to parse as JSON first
+            // Try to extract JSON object from scannedData
             try {
-              final parsed = jsonDecode(scannedData);
-              apiKey = parsed['apiKey'] ?? '';
-              merchantAccount = parsed['merchantAccount'] ?? '';
-            } catch (_) {
-              // If not JSON, try to parse as CSV
+              String cleaned = scannedData.trim();
+              int start = cleaned.indexOf('{');
+              int end = cleaned.lastIndexOf('}');
+              if (start != -1 && end != -1 && end > start) {
+                String jsonPart = cleaned.substring(start, end + 1);
+                final parsed = jsonDecode(jsonPart);
+                apiKey = parsed['apiKey'] ?? '';
+                merchantAccount = parsed['merchantAccount'] ?? '';
+              } else {
+                // fallback: treat as plain string or CSV
+                final parts = cleaned.split(',');
+                if (parts.length >= 2) {
+                  apiKey = parts[0].replaceAll('"', '').trim();
+                  merchantAccount = parts[1].replaceAll('"', '').trim();
+                } else {
+                  apiKey = cleaned;
+                }
+              }
+            } catch (e) {
+              // fallback: treat as plain string or CSV
               final parts = scannedData.split(',');
               if (parts.length >= 2) {
                 apiKey = parts[0].replaceAll('"', '').trim();
@@ -186,6 +211,13 @@ class _ScanApiConfigPageState extends State<ScanApiConfigPage> {
             TextField(
               controller: _merchantController,
               decoration: const InputDecoration(labelText: "Merchant Account"),
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: _poiIdSuffixController,
+              decoration: const InputDecoration(labelText: "Terminal POIID (last 3 digits)"),
+              keyboardType: TextInputType.number,
+              maxLength: 3,
             ),
           ],
         ),
