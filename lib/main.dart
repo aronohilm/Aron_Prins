@@ -8,6 +8,7 @@ import 'package:fluttertoast/fluttertoast.dart';
 import 'terminal_connection_page.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'simple_qr_scan.dart';
+import 'terminal_setup_page.dart';
 // Add these imports for the page classes used in the drawer
 
 void main() => runApp(const PaymentApp());
@@ -339,6 +340,17 @@ if (apiKey == null || endpoint == null || poiId == null) {
                       Navigator.push(
                         context,
                         MaterialPageRoute(builder: (context) => const ScanApiConfigPage()),
+                      );
+                    },
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.phone_iphone),
+                    title: const Text('Samabla'),
+                    onTap: () {
+                      Navigator.pop(context); // Close the drawer first
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (context) => const TerminalSetupPage()),
                       );
                     },
                   ),
