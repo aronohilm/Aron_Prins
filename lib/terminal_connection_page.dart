@@ -34,7 +34,7 @@ class _TerminalConnectionPageState extends State<TerminalConnectionPage> {
     try {
       final prefs = await SharedPreferences.getInstance();
       setState(() {
-        _endpointController.text = prefs.getString('endpoint') ?? 'https://terminal-api-test.adyen.com/connectedTerminals';
+        _endpointController.text = prefs.getString('endpoint') ?? 'https://terminal-api-live.adyen.com/connectedTerminals';
         _apiKeyController.text = prefs.getString('api_key') ?? '';
         _merchantAccountController.text = prefs.getString('merchant_account') ?? '';
         _selectedTerminal = prefs.getString('selected_terminal');
@@ -65,7 +65,7 @@ class _TerminalConnectionPageState extends State<TerminalConnectionPage> {
       final apiKey = prefs.getString('api_key');
       final merchantAccount = _merchantAccountController.text.trim();
       final response = await http.post(
-        Uri.parse('https://terminal-api-test.adyen.com/connectedTerminals'),
+        Uri.parse('https://terminal-api-live.adyen.com/connectedTerminals'),
         headers: {
           'Content-Type': 'application/json',
           'X-API-Key': apiKey ?? '',

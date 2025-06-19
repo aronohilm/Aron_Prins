@@ -5,10 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'package:fluttertoast/fluttertoast.dart';
-import 'settings.dart';
 import 'terminal_connection_page.dart';
-import 'qr_code.dart';
-import 'logs_page.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'simple_qr_scan.dart';
 // Add these imports for the page classes used in the drawer
@@ -45,7 +42,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
   String _response = ''; // Add this line to define the _response variable
   
   String? _apiKey;
-  final String _url = "https://terminal-api-test.adyen.com/sync";
+  final String _url = "https://terminal-api-live.adyen.com/sync";
   String? _poiId;
   String? _selectedTerminal;
 
@@ -150,7 +147,7 @@ void initState() {
 
     // Load saved settings
     final prefs = await SharedPreferences.getInstance();
-    final endpoint = "https://terminal-api-test.adyen.com/sync";
+    final endpoint = "https://terminal-api-live.adyen.com/sync";
     final apiKey = prefs.getString('api_key') ?? _apiKey;
     final poiId = prefs.getString('selected_terminal') ?? _poiId;
     
@@ -160,7 +157,13 @@ void initState() {
     final transactionId = 'TX${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}${now.hour.toString().padLeft(2, '0')}${now.minute.toString().padLeft(2, '0')}${now.second.toString().padLeft(2, '0')}';
     final timestamp = now.toIso8601String() + 'Z';
 
-    final merchantAccount = prefs.getString('merchant_account') ?? 'Straumur_POS_BJARNI_DEFAULT_TEST';
+    final merchantAccount = prefs.getString('merchant_account');
+    if (merchantAccount == null || merchantAccount.isEmpty) {
+        // Show error, prompt user, or block further actions
+        // e.g. showDialog(...), return, etc. 
+        _showToast('Please configure terminal connection first.');
+        return;
+    }
 
     final payload = {
       "SaleToPOIRequest": {
@@ -339,29 +342,7 @@ if (apiKey == null || endpoint == null || poiId == null) {
                       );
                     },
                   ),
-                  ListTile(
-                    leading: const Icon(Icons.receipt_long),
-                    title: const Text('Færslulisti'),
-                    onTap: () {
-                      Navigator.pop(context); // Close the drawer first
-                      Navigator.push(
-                        context,
-                        /*MaterialPageRoute(builder: (context) => const SettingsPage()*/
-                        MaterialPageRoute(builder: (context) => const LogsPage()),
-                      );
-                    },
-                  ),
-                  ListTile(
-                    leading: const Icon(Icons.qr_code),
-                    title: const Text('QR CODE'),
-                    onTap: () {
-                      Navigator.pop(context); // Close the drawer first
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (context) => const ScanApiKeyPage()),
-                      );
-                    },
-                  ),
+
                 ],
               ),
             ),

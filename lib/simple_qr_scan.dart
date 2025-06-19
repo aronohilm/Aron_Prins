@@ -1,12 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:http/io_client.dart';
-import 'package:http/http.dart' as http;
-import 'package:http/io_client.dart' as http show IOClient;
-import 'dart:math';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:path_provider/path_provider.dart';
-import 'dart:io';
 
 class ScanApiConfigPage extends StatefulWidget {
   const ScanApiConfigPage({super.key});
@@ -18,7 +12,7 @@ class ScanApiConfigPage extends StatefulWidget {
 class _ScanApiConfigPageState extends State<ScanApiConfigPage> {
   final TextEditingController _apiKeyController = TextEditingController();
   final TextEditingController _merchantController = TextEditingController();
-  final TextEditingController _poiIdSuffixController = TextEditingController();
+  final FocusNode _apiKeyFocusNode = FocusNode();
   bool _isLoading = false;
   String _scanResult = '';
 
@@ -32,146 +26,30 @@ class _ScanApiConfigPageState extends State<ScanApiConfigPage> {
     final prefs = await SharedPreferences.getInstance();
     final apiKey = prefs.getString('api_key');
     final merchantAccount = prefs.getString('merchant_account');
-    if ((apiKey == null || apiKey.isEmpty) && (merchantAccount == null || merchantAccount.isEmpty)) {
-      setState(() {
-        //_apiKeyController.text = 'AQEqhmfxL43JaxFCw0m/n3Q5qf3Ve59fDIZHTXfy5UT9AM9RlDqYku8lh1U2EMFdWw2+5HzctViMSCJMYAc=-iql6F+AYb1jkHn3zzDBcXZZvYzXFr9wd1iCR9y2JDU0=-i1i{=<;wFH*jLc94NQe';
-        //_merchantController.text = 'Straumur_POS_BJARNI_DEFAULT_TEST';
-        _apiKeyController.text = '';
-        _merchantController.text = '';
-      });
-    } else {
-      setState(() {
-        _apiKeyController.text = apiKey ?? '';
-        _merchantController.text = merchantAccount ?? '';
-      });
-    }
+    setState(() {
+      _apiKeyController.text = apiKey ?? '';
+      _merchantController.text = merchantAccount ?? '';
+    });
   }
 
-  Future<void> activateScanner() async {
-    setState(() {
-      _isLoading = true;
-      _scanResult = '';
-    });
-
-    // Hardcoded prefix, user inputs last 3 digits
-    const poiIdPrefix = 'S1F2L-000158251517';
-    final poiId = poiIdPrefix + _poiIdSuffixController.text.trim();
-
-    final sessionId = Random().nextInt(999999);
-    final now = DateTime.now().toUtc();
-    final saleId = 'ScanKey${now.millisecondsSinceEpoch % 1000000}';
-    final serviceId = 'SID${now.millisecondsSinceEpoch % 1000000}';
-
-    final scannerPayload = {
-      "Session": {
-        "Id": sessionId,
-        "Type": "Once"
-      },
-      "Operation": [
-        {
-          "Type": "ScanBarcode",
-          "TimeoutMs": 10000
-        }
-      ]
-    };
-
-    final base64Payload = base64Encode(utf8.encode(jsonEncode(scannerPayload)));
-
-    final fullRequest = {
-      "SaleToPOIRequest": {
-        "MessageHeader": {
-          "ProtocolVersion": "3.0",
-          "MessageClass": "Service",
-          "MessageCategory": "Admin",
-          "MessageType": "Request",
-          "ServiceID": serviceId,
-          "SaleID": saleId,
-          "POIID": poiId
-        },
-        "AdminRequest": {
-          "ServiceIdentification": base64Payload
-        }
-      }
-    };
-
+  void _parseScannedJson() {
+    final scanned = _apiKeyController.text.trim();
     try {
-      // Accept self-signed certificates for local dev only
-      final ioClient = HttpClient()
-        ..badCertificateCallback = (cert, host, port) => true;
-      final client = http.IOClient(ioClient);
-
-      final response = await client.post(
-        Uri.parse("https://localhost:8443/nexo"),
-        headers: {
-          'Content-Type': 'application/json',
-          // No X-API-Key for local comms
-        },
-        body: jsonEncode(fullRequest),
-      );
-
-      final responseJson = jsonDecode(response.body);
-      final additionalResponse = responseJson["SaleToPOIResponse"]?["AdminResponse"]?["Response"]?["AdditionalResponse"];
-
-      if (additionalResponse != null) {
-        final decoded = Uri.decodeComponent(additionalResponse);
-        if (decoded.startsWith("additionalData=")) {
-          final jsonPart = decoded.replaceFirst("additionalData=", "");
-          final parsed = jsonDecode(jsonPart);
-          final scannedData = parsed['Barcode']?['Data'];
-
-          if (scannedData != null && scannedData is String) {
-            String apiKey = '';
-            String merchantAccount = '';
-
-            // Try to extract JSON object from scannedData
-            try {
-              String cleaned = scannedData.trim();
-              int start = cleaned.indexOf('{');
-              int end = cleaned.lastIndexOf('}');
-              if (start != -1 && end != -1 && end > start) {
-                String jsonPart = cleaned.substring(start, end + 1);
-                final parsed = jsonDecode(jsonPart);
-                apiKey = parsed['apiKey'] ?? '';
-                merchantAccount = parsed['merchantAccount'] ?? '';
-              } else {
-                // fallback: treat as plain string or CSV
-                final parts = cleaned.split(',');
-                if (parts.length >= 2) {
-                  apiKey = parts[0].replaceAll('"', '').trim();
-                  merchantAccount = parts[1].replaceAll('"', '').trim();
-                } else {
-                  apiKey = cleaned;
-                }
-              }
-            } catch (e) {
-              // fallback: treat as plain string or CSV
-              final parts = scannedData.split(',');
-              if (parts.length >= 2) {
-                apiKey = parts[0].replaceAll('"', '').trim();
-                merchantAccount = parts[1].replaceAll('"', '').trim();
-              } else {
-                apiKey = scannedData;
-              }
-            }
-
-            setState(() {
-              _apiKeyController.text = apiKey;
-              _merchantController.text = merchantAccount;
-              _scanResult = 'API Key scanned successfully';
-            });
-          } else {
-            setState(() => _scanResult = 'No valid data scanned');
-          }
-        } else {
-          setState(() => _scanResult = 'Unexpected format: $decoded');
-        }
+      int start = scanned.indexOf('{');
+      int end = scanned.lastIndexOf('}');
+      if (start != -1 && end != -1 && end > start) {
+        String jsonPart = scanned.substring(start, end + 1);
+        final parsed = jsonDecode(jsonPart);
+        setState(() {
+          _apiKeyController.text = parsed['apiKey'] ?? '';
+          _merchantController.text = parsed['merchantAccount'] ?? '';
+          _scanResult = 'API Key and Merchant Account parsed!';
+        });
       } else {
-        setState(() => _scanResult = 'No response received');
+        setState(() => _scanResult = 'No valid JSON found in scanned data.');
       }
     } catch (e) {
-      setState(() => _scanResult = 'Error: $e');
-    } finally {
-      setState(() => _isLoading = false);
+      setState(() => _scanResult = 'Error parsing scanned data: $e');
     }
   }
 
@@ -185,40 +63,88 @@ class _ScanApiConfigPageState extends State<ScanApiConfigPage> {
       body: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            ElevatedButton(
-              onPressed: _isLoading ? null : activateScanner,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF0A3A6A),
-                padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 20),
+            Center(
+              child: ElevatedButton(
+                onPressed: () {
+                  FocusScope.of(context).requestFocus(_apiKeyFocusNode);
+                  setState(() {
+                    _scanResult = 'Ready to scan! Focus the Scan/Paste field and scan the QR code.';
+                  });
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF0A3A6A),
+                  padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 20),
+                ),
+                child: const Text("Ready to Scan", style: TextStyle(fontSize: 18, color: Colors.white)),
               ),
-              child: _isLoading 
-                ? const CircularProgressIndicator(color: Colors.white)
-                : const Text("SCAN", style: TextStyle(fontSize: 18, color: Colors.white)),
             ),
             const SizedBox(height: 20),
-            Text(
-              _scanResult,
-              style: const TextStyle(fontSize: 16),
-              textAlign: TextAlign.center,
+            Center(
+              child: Text(
+                _scanResult,
+                style: const TextStyle(fontSize: 16),
+                textAlign: TextAlign.center,
+              ),
             ),
             const SizedBox(height: 20),
+            const Text(
+              "Scan or Paste JSON here",
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
             TextField(
               controller: _apiKeyController,
-              decoration: const InputDecoration(labelText: "API Key"),
+              focusNode: _apiKeyFocusNode,
+              decoration: const InputDecoration(
+                hintText: '{ "apiKey": "...", "merchantAccount": "..." }',
+                border: OutlineInputBorder(),
+              ),
+              minLines: 1,
+              maxLines: 4,
             ),
             const SizedBox(height: 10),
+            Center(
+              child: ElevatedButton(
+                onPressed: _parseScannedJson,
+                child: const Text('Parse'),
+              ),
+            ),
+            const SizedBox(height: 20),
+            const Text(
+              "API Key",
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+            TextField(
+              controller: _apiKeyController,
+              decoration: const InputDecoration(
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 10),
+            const Text(
+              "Merchant Account",
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
             TextField(
               controller: _merchantController,
-              decoration: const InputDecoration(labelText: "Merchant Account"),
+              decoration: const InputDecoration(
+                border: OutlineInputBorder(),
+              ),
             ),
-            const SizedBox(height: 10),
+            /*const SizedBox(height: 10),
+            const Text(
+              "Terminal POIID (last 3 digits)",
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
             TextField(
               controller: _poiIdSuffixController,
-              decoration: const InputDecoration(labelText: "Terminal POIID (last 3 digits)"),
+              decoration: const InputDecoration(
+                border: OutlineInputBorder(),
+              ),
               keyboardType: TextInputType.number,
               maxLength: 3,
-            ),
+            ),*/
           ],
         ),
       ),
@@ -239,20 +165,12 @@ class _ScanApiConfigPageState extends State<ScanApiConfigPage> {
   Future<void> _saveConfig() async {
     final apiKey = _apiKeyController.text.trim();
     final merchantAccount = _merchantController.text.trim();
-
     // Save to SharedPreferences
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('api_key', apiKey);
     await prefs.setString('merchant_account', merchantAccount);
-
-    // Save to a text file
-    final dir = await getApplicationDocumentsDirectory();
-    final file = File('${dir.path}/api_config.txt');
-    final content = 'apiKey: $apiKey\nmerchantAccount: $merchantAccount';
-    await file.writeAsString(content);
-
     setState(() {
-      _scanResult = 'Saved to SharedPreferences and api_config.txt';
+      _scanResult = 'Saved!';
     });
   }
 }
