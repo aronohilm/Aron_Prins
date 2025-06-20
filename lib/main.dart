@@ -123,6 +123,16 @@ void initState() {
     }
   }
 
+  String _formatAmount(String amount) {
+    if (amount.isEmpty) return '';
+    final parsed = int.tryParse(amount);
+    if (parsed == null) return amount;
+    return parsed.toString().replaceAllMapped(
+      RegExp(r'\B(?=(\d{3})+(?!\d))'),
+      (match) => '.',
+    );
+  }
+
   Future<void> _sendPayment() async {
     if (_amount.isEmpty) {
       _showToast('Sláðu inn upphæð');
@@ -290,7 +300,7 @@ if (apiKey == null || endpoint == null || poiId == null) {
     final screenSize = MediaQuery.of(context).size;
     
     return Scaffold(
-      backgroundColor: const Color(0xFF002244), // Dark blue background
+      backgroundColor: const Color(0xFFE6EBEF), // Updated background color
       endDrawer: Drawer(
         child: Column(  // Changed from ListView to Column to allow for bottom positioning
           children: [
@@ -408,50 +418,39 @@ if (apiKey == null || endpoint == null || poiId == null) {
         child: Column(
           children: [
             // Header - fixed at top
-            Container(
-              color: const Color(0xFF002244), // Dark blue header
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            Padding(
+              padding: const EdgeInsets.only(top: 8, left: 16, right: 16, bottom: 0),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Logo and Straumur text side by side
-                  Row(
-                    children: [
-                      SizedBox(
-                        width: 40, // Make logo smaller
-                        child: Image.asset(
-                          'assets/images/Straumur_Symbol_Neon.png',
-                          height: 25,
-                          fit: BoxFit.contain,
-                        ),
-                      ),
-                      const SizedBox(width: 10), // Space between logo and text
-                      const Text(
-                        'straumur',
-                        style: TextStyle(
-                          color: Color(0xFFDAFDA3),
-                          fontSize: 18,
-                        ),
-                      ),
-                    ],
+                  SizedBox(
+                    width: 250,
+                    child: Image.asset(
+                      'assets/images/LOGO.png',
+                      height: 120,
+                      fit: BoxFit.contain,
+                    ),
                   ),
-                  
-                  // Hamburger menu on the right
                   Builder(
-                    builder: (context) => IconButton(
-                      icon: const Icon(
-                        Icons.menu,
-                        color: Colors.white,
-                        size: 28,
+                    builder: (context) => Container(
+                      margin: const EdgeInsets.only(top: 20),
+                      child: IconButton(
+                        icon: Image.asset(
+                          'assets/images/Sidebar.png',
+                          height: 50,
+                          width: 50,
+                        ),
+                        onPressed: () {
+                          Scaffold.of(context).openEndDrawer();
+                        },
                       ),
-                      onPressed: () {
-                        Scaffold.of(context).openEndDrawer();
-                      },
                     ),
                   ),
                 ],
               ),
             ),
+            const SizedBox(height: 8), // Small gap between header and input
             
             // Flexible content area that will adjust based on screen size
             Expanded(
@@ -459,38 +458,39 @@ if (apiKey == null || endpoint == null || poiId == null) {
                 children: [
                   // Input field - takes a percentage of available space
                   Padding(
-                    padding: EdgeInsets.all(screenSize.width * 0.04), // Responsive padding
+                    padding: EdgeInsets.symmetric(
+                      horizontal: screenSize.width * 0.04,
+                      vertical: 0, // No extra vertical padding
+                    ),
                     child: Container(
-                      height: screenSize.height * 0.12, // Responsive height
+                      height: screenSize.height * 0.10, // Slightly smaller height
                       decoration: BoxDecoration(
-                        color: const Color(0xFF0A3A6A),
-                        border: Border.all(color: Colors.white, width: 2),
-                        borderRadius: BorderRadius.circular(20),
+                        color: const Color(0xFFD6E2EE),
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.07),
+                            blurRadius: 10,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
                       ),
-                      child: TextField(
-                        readOnly: true,
-                        controller: TextEditingController(
-                          text: _amount.isEmpty
-                              ? ''
-                              : '${(_amount)} EUR',
-                        ),
-                        textAlign: TextAlign.right,
+                      alignment: Alignment.center,
+                      child: Text(
+                        _amount.isEmpty ? '' : _formatAmount(_amount),
                         style: TextStyle(
-                          fontSize: screenSize.width * 0.08, // Responsive font size
-                          color: Colors.white, 
-                          fontWeight: FontWeight.bold
+                          fontSize: screenSize.width * 0.11, // Large font
+                          color: const Color(0xFF002244),
+                          fontWeight: FontWeight.bold,
                         ),
-                        decoration: const InputDecoration(
-                          contentPadding: EdgeInsets.symmetric(horizontal: 20, vertical: 30),
-                          border: InputBorder.none,
-                        ),
+                        textAlign: TextAlign.center,
                       ),
                     ),
                   ),
                   
                   // Status message
                   SizedBox(
-                    height: screenSize.height * 0.06, // Responsive height
+                    height: screenSize.height * 0.025, // Reduce status message height
                     child: _transactionStatus.isNotEmpty
                       ? Text(
                           _transactionStatus,
@@ -509,7 +509,7 @@ if (apiKey == null || endpoint == null || poiId == null) {
                     child: Padding(
                       padding: EdgeInsets.symmetric(
                         horizontal: screenSize.width * 0.03, // Responsive padding
-                        vertical: screenSize.height * 0.01,
+                        vertical: screenSize.height * 0.002, // Reduce vertical padding
                       ),
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.spaceEvenly, // Evenly space the rows
@@ -523,13 +523,13 @@ if (apiKey == null || endpoint == null || poiId == null) {
                             Expanded(
                               child: Row(
                                 children: row.map((label) {
-                                  return _buildKeypadButton(label, onTap: () {
-                                    if (label == '<') {
-                                      _backspace();
-                                    } else {
+                                  if (label == '<') {
+                                    return _buildKeypadButton(label, isBackspace: true, onTap: _backspace);
+                                  } else {
+                                    return _buildKeypadButton(label, onTap: () {
                                       _appendDigit(label);
-                                    }
-                                  });
+                                    });
+                                  }
                                 }).toList(),
                               ),
                             ),
@@ -543,25 +543,27 @@ if (apiKey == null || endpoint == null || poiId == null) {
                     padding: EdgeInsets.all(screenSize.width * 0.03), // Responsive padding
                     child: SizedBox(
                       width: double.infinity,
-                      height: screenSize.height * 0.08, // Responsive height
+                      height: screenSize.height * 0.12, // Responsive height
                       child: ElevatedButton(
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.white,
-                          foregroundColor: const Color(0xFF002244),
+                          backgroundColor: const Color(0xFF002244),
+                          foregroundColor: const Color(0xFFDAFDA3),
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(20),
+                            borderRadius: BorderRadius.circular(32),
                           ),
-                          elevation: 0,
+                          elevation: 4,
+                          shadowColor: Colors.black.withOpacity(0.15),
+                          padding: const EdgeInsets.symmetric(vertical: 18),
+
                         ),
                         onPressed: _isLoading ? null : _sendPayment,
                         child: _isLoading
                             ? const CircularProgressIndicator()
-                            : Text(
+                            : const Text(
                                 "Senda í posa",
                                 style: TextStyle(
-                                  fontSize: screenSize.width * 0.06, // Responsive font size
-                                  fontWeight: FontWeight.bold,
-                                  letterSpacing: 1.2,
+                                  fontSize: 32,
+                                  fontWeight: FontWeight.w600,
                                 ),
                               ),
                       ),
@@ -577,40 +579,43 @@ if (apiKey == null || endpoint == null || poiId == null) {
   }
 
   // Update the keypad button to be responsive
-  Widget _buildKeypadButton(String label, {VoidCallback? onTap}) {
-    Color buttonColor = const Color(0xFF002244);
-    Color textColor = Colors.white;
-    
-    // Make the backspace button yellow
-    if (label == '<') {
-      buttonColor = const Color(0xFF002244);
-      textColor = Colors.amber;
+  Widget _buildKeypadButton(String label, {VoidCallback? onTap, bool isBackspace = false}) {
+    Color buttonColor = Colors.transparent;
+    Widget child;
+    if (isBackspace) {
+      // Use delete_hidden if _amount is empty, else delete visable
+      child = Image.asset(
+        _amount.isEmpty
+            ? 'assets/images/delete_hidden.png'
+            : 'assets/images/delete_visible.png',
+        height: 48,
+        width: 48,
+      );
+    } else {
+      child = Text(
+        label,
+        style: const TextStyle(
+          fontSize: 44,
+          fontWeight: FontWeight.w600,
+          color: Color(0xFF002244),
+        ),
+      );
     }
-    
     return Expanded(
       child: Padding(
-        padding: const EdgeInsets.all(4.0), // Reduced padding for more space
+        padding: const EdgeInsets.all(6.0),
         child: ElevatedButton(
           style: ElevatedButton.styleFrom(
             backgroundColor: buttonColor,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            padding: EdgeInsets.zero, // Remove padding to maximize button size
+            elevation: 0,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+              side: BorderSide(color: Colors.transparent),
+            ),
+            padding: EdgeInsets.zero,
           ),
           onPressed: onTap,
-          child: FittedBox(
-            fit: BoxFit.scaleDown,
-            child: Padding(
-              padding: const EdgeInsets.all(8.0),
-              child: Text(
-                label, 
-                style: TextStyle(
-                  fontSize: 30, 
-                  fontWeight: FontWeight.bold, 
-                  color: textColor
-                )
-              ),
-            ),
-          ),
+          child: Center(child: child),
         ),
       ),
     );

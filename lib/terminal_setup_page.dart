@@ -210,13 +210,13 @@ class _TerminalSetupPageState extends State<TerminalSetupPage> {
                         ),
                       ),
                       const SizedBox(height: 24),
-                      TextField(
+                      /*TextField(
                         controller: _endpointController,
                         decoration: const InputDecoration(
                           labelText: 'Endpoint',
                           border: OutlineInputBorder(),
                         ),
-                      ),
+                      ),*/
                       const SizedBox(height: 16),
                       ElevatedButton.icon(
                         onPressed: _isLoading ? null : _fetchTerminals,
